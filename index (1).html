@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chiu Lok Yin — Selected Works 2023–2025</title>
+
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --ink:   #ffffff;
+      --paper: #000000;
+      --rule:  #333333;
+      --ghost: #666666;
+      --accent:#aaaaaa;
+      --font-display: 'Helvetica Neue', 'HelveticaNeue-Light', Helvetica, Arial, sans-serif;
+      --font-body:    'Helvetica Neue', 'HelveticaNeue-Light', Helvetica, Arial, sans-serif;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--font-body);
+      font-weight: 300;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    /* ── Header ───────────────────────────────────────── */
+    header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      border-bottom: 1px solid var(--rule);
+      background: var(--paper);
+      z-index: 100;
+      user-select: none;
+    }
+    .header-name {
+      font-family: var(--font-display);
+      font-weight: 200;
+      font-size: 13px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+    }
+    .header-meta {
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ghost);
+    }
+
+    /* ── Viewer shell ─────────────────────────────────── */
+    #viewer-shell {
+      position: fixed;
+      top: 52px; bottom: 48px; left: 0; right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: var(--paper);
+    }
+
+    /* ── Flipbook stage ───────────────────────────────── */
+    #stage {
+      position: relative;
+      /* sized by JS once PDF dimensions are known */
+    }
+
+    /* Pages sit stacked; only current/next visible */
+    .page-wrap {
+      position: absolute;
+      top: 0; left: 0;
+      transform-origin: left center;
+      transition: transform 0.55s cubic-bezier(.77,0,.18,1),
+                  opacity  0.55s ease;
+      will-change: transform, opacity;
+    }
+    .page-wrap.hidden   { opacity: 0; pointer-events: none; }
+    .page-wrap.visible  { opacity: 1; }
+    .page-wrap.exit-left  { transform: rotateY(-90deg) scaleX(0); opacity: 0; }
+    .page-wrap.exit-right { transform: rotateY(90deg)  scaleX(0); opacity: 0; }
+
+    canvas {
+      display: block;
+      box-shadow: 0 4px 40px rgba(0,0,0,0.6);
+    }
+
+    /* ── Watermark overlay ────────────────────────────── */
+    .watermark {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+    .watermark svg {
+      width: 70%;
+      opacity: 0.045;
+      user-select: none;
+    }
+
+    /* ── Toolbar ──────────────────────────────────────── */
+    #toolbar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      border-top: 1px solid var(--rule);
+      background: var(--paper);
+      z-index: 100;
+      user-select: none;
+    }
+    .tb-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0 18px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-family: var(--font-body);
+      font-size: 10px;
+      font-weight: 200;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--accent);
+      transition: color 0.2s;
+    }
+    .tb-btn:hover { color: var(--ink); }
+    .tb-btn:disabled { color: var(--rule); cursor: default; }
+    .tb-btn svg { flex-shrink: 0; }
+
+    #page-counter {
+      min-width: 110px;
+      text-align: center;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--ghost);
+    }
+
+    /* divider */
+    .tb-div {
+      width: 1px;
+      height: 18px;
+      background: var(--rule);
+      margin: 0 4px;
+    }
+
+    /* ── Loading screen ───────────────────────────────── */
+    #loading {
+      position: fixed;
+      inset: 0;
+      background: var(--paper);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      z-index: 200;
+    }
+    #loading .load-name {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 200;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+    }
+    #loading .load-sub {
+      font-size: 10px;
+      letter-spacing: 0.20em;
+      text-transform: uppercase;
+      color: var(--ghost);
+    }
+    .load-bar-track {
+      width: 180px;
+      height: 1px;
+      background: var(--rule);
+      position: relative;
+      overflow: hidden;
+    }
+    .load-bar-fill {
+      position: absolute;
+      top: 0; left: 0;
+      height: 100%;
+      width: 0%;
+      background: #ffffff;
+      transition: width 0.3s ease;
+    }
+
+    /* ── Right-click shield ───────────────────────────── */
+    #shield {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      /* transparent but blocks context menu on the canvas area */
+    }
+
+    /* ── Copyright notice ─────────────────────────────── */
+    #copyright {
+      position: fixed;
+      bottom: 56px;
+      right: 14px;
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      color: var(--rule);
+      z-index: 101;
+      user-select: none;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Loading screen -->
+<div id="loading">
+  <div class="load-name">Chiu Lok Yin</div>
+  <div class="load-sub">Selected Works 2023 – 2025</div>
+  <div class="load-bar-track"><div class="load-bar-fill" id="load-fill"></div></div>
+</div>
+
+<!-- Header -->
+<header>
+  <span class="header-name">Chiu Lok Yin</span>
+  <span class="header-meta">Selected Works — 2023 / 2025</span>
+</header>
+
+<!-- Viewer -->
+<div id="viewer-shell">
+  <div id="stage">
+    <!-- canvases injected by JS -->
+  </div>
+</div>
+
+<!-- Right-click shield -->
+<div id="shield"></div>
+
+<!-- Copyright -->
+<div id="copyright">© 2026 Chiu Lok Yin. All rights reserved.</div>
+
+<!-- Toolbar -->
+<div id="toolbar">
+  <button class="tb-btn" id="btn-first" title="First page">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="1" y="1" width="1.5" height="10" fill="currentColor"/><path d="M11 1L4 6l7 5V1z" fill="currentColor"/></svg>
+    First
+  </button>
+  <div class="tb-div"></div>
+  <button class="tb-btn" id="btn-prev" title="Previous page (←)">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8 1L3 6l5 5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Prev
+  </button>
+
+  <div id="page-counter">— / —</div>
+
+  <button class="tb-btn" id="btn-next" title="Next page (→)">
+    Next
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 1l5 5-5 5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  <div class="tb-div"></div>
+  <button class="tb-btn" id="btn-last" title="Last page">
+    Last
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="9.5" y="1" width="1.5" height="10" fill="currentColor"/><path d="M1 1l7 5-7 5V1z" fill="currentColor"/></svg>
+  </button>
+</div>
+
+<script>
+// ── Config ────────────────────────────────────────────────────
+const PDF_URL       = 'portfolio.pdf';
+const AUTHOR        = 'Chiu Lok Yin';
+const COPYRIGHT     = `© 2026 ${AUTHOR}. All rights reserved.`;
+const HEADER_HEIGHT = 52;
+const FOOTER_HEIGHT = 48;
+
+// ── State ─────────────────────────────────────────────────────
+let pdfDoc    = null;
+let totalPages = 0;
+let currentPage = 1;
+let canvases  = [];
+let rendering = false;
+let stageW    = 0, stageH = 0;
+
+// ── Boot PDF.js ───────────────────────────────────────────────
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ── Disable context menu and drag everywhere ──────────────────
+document.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('dragstart',   e => e.preventDefault());
+document.addEventListener('selectstart', e => e.preventDefault());
+
+// ── Keyboard navigation ───────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown')  goTo(currentPage + 1);
+  if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')    goTo(currentPage - 1);
+  if (e.key === 'Home') goTo(1);
+  if (e.key === 'End')  goTo(totalPages);
+});
+
+// ── Load PDF ──────────────────────────────────────────────────
+async function init() {
+  const loadingTask = pdfjsLib.getDocument(PDF_URL);
+  loadingTask.onProgress = ({ loaded, total }) => {
+    if (total) {
+      document.getElementById('load-fill').style.width =
+        Math.round(loaded / total * 100) + '%';
+    }
+  };
+  pdfDoc     = await loadingTask.promise;
+  totalPages = pdfDoc.numPages;
+  await renderPage(1);
+  document.getElementById('loading').style.display = 'none';
+  updateControls();
+}
+
+// ── Compute scale so page fits viewport ───────────────────────
+function computeScale(viewport) {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight - HEADER_HEIGHT - FOOTER_HEIGHT - 16;
+  return Math.min(vw / viewport.width, vh / viewport.height);
+}
+
+// ── Render a single page to canvas ───────────────────────────
+async function renderPage(num) {
+  if (rendering) return;
+  rendering = true;
+
+  const stage = document.getElementById('stage');
+
+  // get page
+  const page     = await pdfDoc.getPage(num);
+  const rawVP    = page.getViewport({ scale: 1 });
+  const scale    = computeScale(rawVP);
+  const viewport = page.getViewport({ scale });
+
+  // size the stage
+  stageW = viewport.width;
+  stageH = viewport.height;
+  stage.style.width  = stageW + 'px';
+  stage.style.height = stageH + 'px';
+
+  // reuse or create canvas
+  let wrap = document.getElementById(`page-${num}`);
+  if (!wrap) {
+    wrap          = document.createElement('div');
+    wrap.id       = `page-${num}`;
+    wrap.className = 'page-wrap hidden';
+    wrap.style.width  = stageW + 'px';
+    wrap.style.height = stageH + 'px';
+
+    const cvs     = document.createElement('canvas');
+    cvs.width     = stageW;
+    cvs.height    = stageH;
+
+    // watermark overlay
+    const wm = document.createElement('div');
+    wm.className = 'watermark';
+    wm.innerHTML = `<svg viewBox="0 0 400 80" xmlns="http://www.w3.org/2000/svg">
+      <text x="200" y="50" text-anchor="middle" font-family="serif" font-size="28"
+            letter-spacing="8" fill="#000">${AUTHOR.toUpperCase()}</text>
+      <text x="200" y="72" text-anchor="middle" font-family="serif" font-size="11"
+            letter-spacing="4" fill="#000">${COPYRIGHT}</text>
+    </svg>`;
+
+    wrap.appendChild(cvs);
+    wrap.appendChild(wm);
+    stage.appendChild(wrap);
+
+    // render PDF page onto canvas
+    const ctx = cvs.getContext('2d');
+    await page.render({ canvasContext: ctx, viewport }).promise;
+  }
+
+  // animate out old, in new
+  const prev = document.querySelector('.page-wrap.visible');
+  if (prev && prev.id !== wrap.id) {
+    prev.classList.remove('visible');
+    prev.classList.add('hidden');
+  }
+  wrap.classList.remove('hidden');
+  wrap.classList.add('visible');
+  wrap.style.left = '0px';
+  wrap.style.top  = '0px';
+
+  currentPage = num;
+  rendering   = false;
+  updateControls();
+}
+
+// ── Navigation ────────────────────────────────────────────────
+function goTo(num) {
+  if (!pdfDoc) return;
+  num = Math.max(1, Math.min(totalPages, num));
+  if (num === currentPage) return;
+  renderPage(num);
+}
+
+// ── Update toolbar state ──────────────────────────────────────
+function updateControls() {
+  document.getElementById('page-counter').textContent =
+    `${currentPage} / ${totalPages}`;
+  document.getElementById('btn-prev').disabled  = currentPage <= 1;
+  document.getElementById('btn-first').disabled = currentPage <= 1;
+  document.getElementById('btn-next').disabled  = currentPage >= totalPages;
+  document.getElementById('btn-last').disabled  = currentPage >= totalPages;
+}
+
+// ── Toolbar buttons ───────────────────────────────────────────
+document.getElementById('btn-prev') .addEventListener('click', () => goTo(currentPage - 1));
+document.getElementById('btn-next') .addEventListener('click', () => goTo(currentPage + 1));
+document.getElementById('btn-first').addEventListener('click', () => goTo(1));
+document.getElementById('btn-last') .addEventListener('click', () => goTo(totalPages));
+
+// ── Swipe support (mobile) ────────────────────────────────────
+let touchStartX = 0;
+document.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; });
+document.addEventListener('touchend',   e => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  if (Math.abs(dx) > 50) dx < 0 ? goTo(currentPage + 1) : goTo(currentPage - 1);
+});
+
+// ── Resize ────────────────────────────────────────────────────
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    // clear cache and re-render current page
+    document.getElementById('stage').innerHTML = '';
+    rendering = false;
+    renderPage(currentPage);
+  }, 250);
+});
+
+// ── Start ─────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
