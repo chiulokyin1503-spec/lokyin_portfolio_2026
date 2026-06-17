@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!-- viewport: prevent browser-level pinch zoom; we handle it ourselves -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Chiu Lok Yin — Selected Works 2023–2025</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --ink:    #ffffff;
+      --paper:  #000000;
+      --rule:   #333333;
+      --ghost:  #666666;
+      --accent: #aaaaaa;
+      --font:   'Helvetica Neue', 'HelveticaNeue-Light', Helvetica, Arial, sans-serif;
+      --hh: 48px;  /* header height */
+      --fh: 48px;  /* footer height */
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--font);
+      font-weight: 200;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+      touch-action: none; /* we manage all touch */
+    }
+
+    /* ── HEADER ─────────────────────────────────────── */
+    #header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: var(--hh);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--rule);
+      background: var(--paper);
+      z-index: 300;
+      user-select: none;
+      flex-shrink: 0;
+    }
+    .h-name {
+      font-size: clamp(10px, 2.5vw, 13px);
+      font-weight: 200;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .h-meta {
+      font-size: clamp(8px, 1.8vw, 10px);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ghost);
+      white-space: nowrap;
+    }
+
+    /* ── VIEWER SHELL ───────────────────────────────── */
+    #viewer-shell {
+      position: fixed;
+      top: var(--hh);
+      bottom: var(--fh);
+      left: 0; right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: var(--paper);
+      touch-action: none;
+    }
+
+    /* ── STAGE — the transformable container ────────── */
+    #stage {
+      position: relative;
+      transform-origin: center center;
+      /* JS applies transform: scale() here for pinch zoom */
+      will-change: transform;
+      transition: transform 0.35s cubic-bezier(.25,.46,.45,.94);
+    }
+    #stage.no-transition {
+      transition: none;
+    }
+
+    /* ── PAGE WRAPS ─────────────────────────────────── */
+    .page-wrap {
+      position: absolute;
+      top: 0; left: 0;
+    }
+    .page-wrap.hidden  { opacity: 0; pointer-events: none; }
+    .page-wrap.visible { opacity: 1; }
+
+    canvas { display: block; }
+
+    /* ── WATERMARK ──────────────────────────────────── */
+    .watermark {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+    .watermark svg { width: 65%; opacity: 0.045; user-select: none; }
+
+    /* ── FOOTER TOOLBAR ─────────────────────────────── */
+    #toolbar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: var(--fh);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-top: 1px solid var(--rule);
+      background: var(--paper);
+      z-index: 300;
+      user-select: none;
+      gap: 0;
+    }
+    .tb-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      height: var(--fh);
+      padding: 0 clamp(8px, 2vw, 16px);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--font);
+      font-size: clamp(8px, 1.8vw, 10px);
+      font-weight: 200;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      transition: color 0.2s;
+      white-space: nowrap;
+    }
+    .tb-btn:hover  { color: var(--ink); }
+    .tb-btn:disabled { color: var(--rule); cursor: default; }
+    .tb-btn svg { flex-shrink: 0; }
+    .tb-div { width: 1px; height: 16px; background: var(--rule); margin: 0 2px; flex-shrink: 0; }
+    #page-counter {
+      min-width: 70px;
+      text-align: center;
+      font-size: clamp(8px, 1.8vw, 10px);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--ghost);
+      flex-shrink: 0;
+    }
+
+    /* ── GRID MODE ──────────────────────────────────── */
+    #grid-overlay {
+      display: none;
+      position: fixed;
+      top: var(--hh);
+      bottom: var(--fh);
+      left: 0; right: 0;
+      overflow-y: auto;
+      background: var(--paper);
+      z-index: 200;
+      padding: 16px;
+      -webkit-overflow-scrolling: touch;
+    }
+    #grid-overlay.active { display: block; }
+    #grid-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(min(160px, 45vw), 1fr));
+      gap: 12px;
+    }
+    .grid-thumb {
+      position: relative;
+      cursor: pointer;
+      background: #111;
+      overflow: hidden;
+      aspect-ratio: 2 / 1; /* will be corrected by JS once PDF aspect known */
+    }
+    .grid-thumb canvas {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+    .grid-thumb .g-num {
+      position: absolute;
+      bottom: 6px; right: 8px;
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      color: rgba(255,255,255,0.4);
+    }
+    .grid-thumb:hover { outline: 1px solid var(--accent); }
+
+    /* ── FULLSCREEN OVERLAY (grid tap) ──────────────── */
+    #fullscreen-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #000;
+      z-index: 400;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+    }
+    #fullscreen-overlay.active { display: flex; }
+    #fs-canvas-wrap {
+      position: relative;
+      max-width: 100vw;
+      max-height: 100vh;
+    }
+    #fs-canvas-wrap canvas { display: block; max-width: 100vw; max-height: 100vh; }
+    #fs-close {
+      position: fixed;
+      top: 16px; right: 16px;
+      background: none;
+      border: 1px solid var(--rule);
+      color: var(--accent);
+      font-family: var(--font);
+      font-size: 10px;
+      font-weight: 200;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      padding: 8px 14px;
+      cursor: pointer;
+      z-index: 401;
+    }
+    #fs-close:hover { color: var(--ink); border-color: var(--ink); }
+    #fs-page-label {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      color: var(--ghost);
+      z-index: 401;
+    }
+
+    /* ── LOADING ─────────────────────────────────────── */
+    #loading {
+      position: fixed;
+      inset: 0;
+      background: var(--paper);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      z-index: 500;
+    }
+    .l-name {
+      font-size: clamp(14px, 4vw, 20px);
+      font-weight: 200;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+    }
+    .l-sub {
+      font-size: clamp(8px, 2vw, 10px);
+      letter-spacing: 0.20em;
+      text-transform: uppercase;
+      color: var(--ghost);
+    }
+    .l-track {
+      width: min(180px, 60vw);
+      height: 1px;
+      background: var(--rule);
+      position: relative;
+      overflow: hidden;
+    }
+    .l-fill {
+      position: absolute;
+      top: 0; left: 0; height: 100%; width: 0%;
+      background: #fff;
+      transition: width 0.3s ease;
+    }
+
+    /* ── COPYRIGHT ──────────────────────────────────── */
+    #copyright {
+      position: fixed;
+      bottom: calc(var(--fh) + 8px);
+      right: 12px;
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      color: var(--rule);
+      z-index: 301;
+      user-select: none;
+      pointer-events: none;
+    }
+
+    /* ── GRID BUTTON active state ───────────────────── */
+    #btn-grid.is-active { color: var(--ink); }
+  </style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading">
+  <div class="l-name">Chiu Lok Yin</div>
+  <div class="l-sub">Selected Works 2023 – 2025</div>
+  <div class="l-track"><div class="l-fill" id="load-fill"></div></div>
+</div>
+
+<!-- Header -->
+<div id="header">
+  <span class="h-name">Chiu Lok Yin</span>
+  <span class="h-meta">Selected Works — 2023 / 2025</span>
+</div>
+
+<!-- Viewer -->
+<div id="viewer-shell">
+  <div id="stage"></div>
+</div>
+
+<!-- Grid overlay -->
+<div id="grid-overlay">
+  <div id="grid-container"></div>
+</div>
+
+<!-- Fullscreen overlay (grid tap) -->
+<div id="fullscreen-overlay">
+  <button id="fs-close">✕ Close</button>
+  <div id="fs-canvas-wrap"></div>
+  <div id="fs-page-label"></div>
+</div>
+
+<!-- Copyright -->
+<div id="copyright">© 2026 Chiu Lok Yin. All rights reserved.</div>
+
+<!-- Toolbar -->
+<div id="toolbar">
+  <button class="tb-btn" id="btn-first">
+    <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><rect x="1" y="1" width="1.5" height="10" fill="currentColor"/><path d="M11 1L4 6l7 5V1z" fill="currentColor"/></svg>
+    First
+  </button>
+  <div class="tb-div"></div>
+  <button class="tb-btn" id="btn-prev">
+    <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M8 1L3 6l5 5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Prev
+  </button>
+  <div id="page-counter">— / —</div>
+  <button class="tb-btn" id="btn-next">
+    Next
+    <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M4 1l5 5-5 5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  <div class="tb-div"></div>
+  <button class="tb-btn" id="btn-last">
+    Last
+    <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><rect x="9.5" y="1" width="1.5" height="10" fill="currentColor"/><path d="M1 1l7 5-7 5V1z" fill="currentColor"/></svg>
+  </button>
+  <div class="tb-div"></div>
+  <button class="tb-btn" id="btn-grid" title="Grid view">
+    <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+      <rect x="1" y="1" width="4" height="4" stroke="currentColor" stroke-width="1.2"/>
+      <rect x="7" y="1" width="4" height="4" stroke="currentColor" stroke-width="1.2"/>
+      <rect x="1" y="7" width="4" height="4" stroke="currentColor" stroke-width="1.2"/>
+      <rect x="7" y="7" width="4" height="4" stroke="currentColor" stroke-width="1.2"/>
+    </svg>
+    Grid
+  </button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════
+const PDF_URL   = 'portfolio.pdf';
+const AUTHOR    = 'Chiu Lok Yin';
+const COPYRIGHT = `© 2026 ${AUTHOR}. All rights reserved.`;
+const DPR       = Math.min(window.devicePixelRatio || 1, 2); // cap at 2× for sharpness
+
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let pdfDoc      = null;
+let totalPages  = 0;
+let currentPage = 1;
+let rendering   = false;
+let gridMode    = false;
+let gridRendered = new Set();
+
+// Pinch-zoom state
+let pinchScale    = 1;
+let pinchBaseScale = 1;
+let pinchActive   = false;
+const MIN_SCALE   = 1;
+const MAX_SCALE   = 4;
+
+// Swipe state
+let swipeStartX  = 0;
+let swipeStartY  = 0;
+let swipeIsPinch = false;
+
+// ═══════════════════════════════════════════════════════════
+// PREVENT BROWSER DEFAULT TOUCH BEHAVIOUR
+// ═══════════════════════════════════════════════════════════
+document.addEventListener('touchstart',  e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+document.addEventListener('touchmove',   e => e.preventDefault(), { passive: false });
+document.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('dragstart',   e => e.preventDefault());
+document.addEventListener('selectstart', e => e.preventDefault());
+
+// ═══════════════════════════════════════════════════════════
+// DIMENSIONS — header + footer are always fixed
+// ═══════════════════════════════════════════════════════════
+function viewerW() { return window.innerWidth; }
+function viewerH() { return window.innerHeight - 48 - 48; } // header + footer
+
+// ═══════════════════════════════════════════════════════════
+// SCALE: fit page inside viewer, using devicePixelRatio for sharpness
+// ═══════════════════════════════════════════════════════════
+function fitScale(rawVP) {
+  const vw = viewerW();
+  const vh = viewerH();
+  const pad = isMobile() ? 4 : 16;
+  return Math.min((vw - pad) / rawVP.width, (vh - pad) / rawVP.height);
+}
+
+function isMobile() {
+  return window.innerWidth <= 768 || ('ontouchstart' in window);
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT: load PDF
+// ═══════════════════════════════════════════════════════════
+async function init() {
+  const task = pdfjsLib.getDocument(PDF_URL);
+  task.onProgress = ({ loaded, total }) => {
+    if (total) document.getElementById('load-fill').style.width =
+      Math.round(loaded / total * 100) + '%';
+  };
+  pdfDoc     = await task.promise;
+  totalPages = pdfDoc.numPages;
+  await renderPage(1);
+  document.getElementById('loading').style.display = 'none';
+  updateControls();
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER: one page into stage
+// ═══════════════════════════════════════════════════════════
+async function renderPage(num) {
+  if (rendering) return;
+  rendering = true;
+
+  // Reset pinch zoom when changing pages
+  pinchScale = 1;
+  applyPinchTransform(false);
+
+  const stage = document.getElementById('stage');
+  const page  = await pdfDoc.getPage(num);
+  const rawVP = page.getViewport({ scale: 1 });
+  const scale = fitScale(rawVP);
+
+  // Canvas physical pixels = CSS pixels × DPR for sharpness
+  const cssW = rawVP.width  * scale;
+  const cssH = rawVP.height * scale;
+  const phyW = Math.round(cssW * DPR);
+  const phyH = Math.round(cssH * DPR);
+
+  stage.style.width  = cssW + 'px';
+  stage.style.height = cssH + 'px';
+
+  let wrap = document.getElementById(`page-${num}`);
+  if (!wrap) {
+    wrap           = document.createElement('div');
+    wrap.id        = `page-${num}`;
+    wrap.className = 'page-wrap hidden';
+    wrap.style.width  = cssW + 'px';
+    wrap.style.height = cssH + 'px';
+
+    const cvs    = document.createElement('canvas');
+    cvs.width    = phyW;
+    cvs.height   = phyH;
+    cvs.style.width  = cssW + 'px';
+    cvs.style.height = cssH + 'px';
+    cvs.style.imageRendering = 'crisp-edges';
+
+    const wm = document.createElement('div');
+    wm.className = 'watermark';
+    wm.innerHTML = `<svg viewBox="0 0 400 80" xmlns="http://www.w3.org/2000/svg">
+      <text x="200" y="50" text-anchor="middle" font-family="sans-serif" font-size="28"
+            letter-spacing="8" fill="#000">${AUTHOR.toUpperCase()}</text>
+      <text x="200" y="70" text-anchor="middle" font-family="sans-serif" font-size="10"
+            letter-spacing="4" fill="#000">${COPYRIGHT}</text>
+    </svg>`;
+
+    wrap.appendChild(cvs);
+    wrap.appendChild(wm);
+    stage.appendChild(wrap);
+
+    const ctx = cvs.getContext('2d');
+    ctx.scale(DPR, DPR);
+    await page.render({ canvasContext: ctx, viewport: page.getViewport({ scale }) }).promise;
+  }
+
+  // Swap visible
+  const prev = stage.querySelector('.page-wrap.visible');
+  if (prev && prev !== wrap) {
+    prev.classList.remove('visible');
+    prev.classList.add('hidden');
+  }
+  wrap.style.width  = cssW + 'px';
+  wrap.style.height = cssH + 'px';
+  wrap.classList.remove('hidden');
+  wrap.classList.add('visible');
+
+  currentPage = num;
+  rendering   = false;
+  updateControls();
+}
+
+// ═══════════════════════════════════════════════════════════
+// PINCH ZOOM — only scales #stage, header/footer untouched
+// ═══════════════════════════════════════════════════════════
+function applyPinchTransform(animate) {
+  const stage = document.getElementById('stage');
+  if (animate) {
+    stage.classList.remove('no-transition');
+  } else {
+    stage.classList.add('no-transition');
+  }
+  stage.style.transform = `scale(${pinchScale})`;
+}
+
+function getPinchDist(touches) {
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.hypot(dx, dy);
+}
+
+// ═══════════════════════════════════════════════════════════
+// TOUCH HANDLING — viewer shell only
+// ═══════════════════════════════════════════════════════════
+const shell = document.getElementById('viewer-shell');
+
+shell.addEventListener('touchstart', e => {
+  if (e.touches.length === 2) {
+    // Pinch start
+    swipeIsPinch    = true;
+    pinchActive     = true;
+    pinchBaseScale  = pinchScale;
+    shell._pinchStart = getPinchDist(e.touches);
+  } else if (e.touches.length === 1) {
+    swipeIsPinch = false;
+    pinchActive  = false;
+    swipeStartX  = e.touches[0].clientX;
+    swipeStartY  = e.touches[0].clientY;
+  }
+}, { passive: true });
+
+shell.addEventListener('touchmove', e => {
+  if (e.touches.length === 2 && pinchActive) {
+    const dist    = getPinchDist(e.touches);
+    const ratio   = dist / shell._pinchStart;
+    pinchScale    = Math.min(MAX_SCALE, Math.max(MIN_SCALE, pinchBaseScale * ratio));
+    applyPinchTransform(false);
+  }
+}, { passive: true });
+
+shell.addEventListener('touchend', e => {
+  if (pinchActive && e.touches.length < 2) {
+    // Pinch ended — snap back to 1 (rebound)
+    pinchActive = false;
+    pinchScale  = 1;
+    applyPinchTransform(true); // animated rebound
+    swipeIsPinch = false;
+    return;
+  }
+
+  if (swipeIsPinch) return; // don't navigate if a pinch was involved
+
+  // Single-finger swipe navigation
+  const dx = e.changedTouches[0].clientX - swipeStartX;
+  const dy = e.changedTouches[0].clientY - swipeStartY;
+  // Only navigate if clearly horizontal and not in grid mode
+  if (!gridMode && Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+    dx < 0 ? goTo(currentPage + 1) : goTo(currentPage - 1);
+  }
+}, { passive: true });
+
+// ═══════════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════════
+function goTo(num) {
+  if (!pdfDoc || gridMode) return;
+  num = Math.max(1, Math.min(totalPages, num));
+  if (num === currentPage) return;
+  renderPage(num);
+}
+
+function updateControls() {
+  document.getElementById('page-counter').textContent = `${currentPage} / ${totalPages}`;
+  document.getElementById('btn-prev').disabled  = currentPage <= 1;
+  document.getElementById('btn-first').disabled = currentPage <= 1;
+  document.getElementById('btn-next').disabled  = currentPage >= totalPages || gridMode;
+  document.getElementById('btn-last').disabled  = currentPage >= totalPages || gridMode;
+}
+
+document.getElementById('btn-prev') .addEventListener('click', () => goTo(currentPage - 1));
+document.getElementById('btn-next') .addEventListener('click', () => goTo(currentPage + 1));
+document.getElementById('btn-first').addEventListener('click', () => goTo(1));
+document.getElementById('btn-last') .addEventListener('click', () => goTo(totalPages));
+
+// Keyboard
+document.addEventListener('keydown', e => {
+  if (gridMode) return;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') goTo(currentPage + 1);
+  if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   goTo(currentPage - 1);
+  if (e.key === 'Home') goTo(1);
+  if (e.key === 'End')  goTo(totalPages);
+});
+
+// ═══════════════════════════════════════════════════════════
+// GRID MODE
+// ═══════════════════════════════════════════════════════════
+const gridOverlay   = document.getElementById('grid-overlay');
+const gridContainer = document.getElementById('grid-container');
+const btnGrid       = document.getElementById('btn-grid');
+
+btnGrid.addEventListener('click', () => {
+  gridMode = !gridMode;
+  gridOverlay.classList.toggle('active', gridMode);
+  btnGrid.classList.toggle('is-active', gridMode);
+  btnGrid.querySelector('span') && (btnGrid.querySelector('span').textContent = gridMode ? 'List' : 'Grid');
+  if (gridMode) renderGrid();
+  updateControls();
+});
+
+async function renderGrid() {
+  if (!pdfDoc) return;
+
+  // Build grid cells first (empty placeholders)
+  if (gridContainer.children.length === 0) {
+    for (let i = 1; i <= totalPages; i++) {
+      const cell  = document.createElement('div');
+      cell.className = 'grid-thumb';
+      cell.dataset.page = i;
+
+      const num = document.createElement('div');
+      num.className = 'g-num';
+      num.textContent = i;
+      cell.appendChild(num);
+
+      cell.addEventListener('click', () => openFullscreen(parseInt(cell.dataset.page)));
+      cell.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        openFullscreen(parseInt(cell.dataset.page));
+      });
+
+      gridContainer.appendChild(cell);
+    }
+  }
+
+  // Render thumbnails progressively
+  const THUMB_SCALE = 0.18;
+  for (let i = 1; i <= totalPages; i++) {
+    if (gridRendered.has(i)) continue;
+    const cell = gridContainer.children[i - 1];
+    if (!cell) continue;
+
+    // Lazy: only render if no canvas yet
+    if (cell.querySelector('canvas')) continue;
+
+    const page  = await pdfDoc.getPage(i);
+    const rawVP = page.getViewport({ scale: 1 });
+    const vp    = page.getViewport({ scale: THUMB_SCALE });
+
+    const cvs     = document.createElement('canvas');
+    cvs.width     = Math.round(vp.width);
+    cvs.height    = Math.round(vp.height);
+    cvs.style.width  = '100%';
+    cvs.style.height = '100%';
+    cvs.style.objectFit = 'contain';
+
+    // Fix cell aspect ratio
+    cell.style.aspectRatio = `${rawVP.width} / ${rawVP.height}`;
+
+    cell.insertBefore(cvs, cell.firstChild);
+    gridRendered.add(i);
+
+    const ctx = cvs.getContext('2d');
+    page.render({ canvasContext: ctx, viewport: vp });
+
+    // Small yield so UI stays responsive
+    await new Promise(r => setTimeout(r, 0));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// FULLSCREEN (from grid tap)
+// ═══════════════════════════════════════════════════════════
+const fsOverlay = document.getElementById('fullscreen-overlay');
+const fsWrap    = document.getElementById('fs-canvas-wrap');
+const fsLabel   = document.getElementById('fs-page-label');
+
+async function openFullscreen(num) {
+  fsWrap.innerHTML = '';
+  fsLabel.textContent = `${num} / ${totalPages}`;
+
+  const page  = await pdfDoc.getPage(num);
+  const rawVP = page.getViewport({ scale: 1 });
+
+  // Fit to full screen
+  const scale = Math.min(
+    window.innerWidth  / rawVP.width,
+    window.innerHeight / rawVP.height
+  ) * 0.97;
+
+  const vp   = page.getViewport({ scale });
+  const cvs  = document.createElement('canvas');
+  cvs.width  = Math.round(vp.width  * DPR);
+  cvs.height = Math.round(vp.height * DPR);
+  cvs.style.width  = Math.round(vp.width)  + 'px';
+  cvs.style.height = Math.round(vp.height) + 'px';
+
+  fsWrap.appendChild(cvs);
+  fsOverlay.classList.add('active');
+
+  const ctx = cvs.getContext('2d');
+  ctx.scale(DPR, DPR);
+  await page.render({ canvasContext: ctx, viewport: vp }).promise;
+}
+
+document.getElementById('fs-close').addEventListener('click', () => {
+  fsOverlay.classList.remove('active');
+});
+fsOverlay.addEventListener('touchend', e => {
+  if (e.target === fsOverlay) fsOverlay.classList.remove('active');
+}, { passive: true });
+
+// ═══════════════════════════════════════════════════════════
+// RESIZE — re-render current page, clear cache
+// ═══════════════════════════════════════════════════════════
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    document.getElementById('stage').innerHTML = '';
+    rendering = false;
+    pinchScale = 1;
+    renderPage(currentPage);
+  }, 200);
+});
+
+// ═══════════════════════════════════════════════════════════
+// START
+// ═══════════════════════════════════════════════════════════
+init();
+</script>
+</body>
+</html>
