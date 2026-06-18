@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Chiu Lok Yin — Selected Works 2023–2025</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --font:'Helvetica Neue',Helvetica,Arial,sans-serif;
+  --hh:48px;--fh:48px;
+}
+
+html,body{
+  width:100%;height:100%;
+  background:#000;color:#fff;
+  font-family:var(--font);font-weight:200;
+  -webkit-font-smoothing:antialiased;
+  overflow:hidden;
+}
+
+/* ── LOADING SCREEN ── */
+#splash{
+  position:fixed;inset:0;background:#000;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:24px;
+  z-index:999;
+  transition:opacity .8s ease;
+}
+#splash.out{opacity:0;pointer-events:none;}
+.s-name{
+  font-size:clamp(14px,3.5vw,22px);font-weight:200;
+  letter-spacing:.28em;text-transform:uppercase;
+}
+.s-sub{
+  font-size:clamp(8px,1.8vw,11px);font-weight:200;
+  letter-spacing:.22em;text-transform:uppercase;color:#555;
+}
+.s-track{
+  width:min(200px,52vw);height:1px;background:#222;
+  position:relative;overflow:hidden;
+}
+.s-fill{
+  position:absolute;top:0;left:0;height:100%;width:0%;
+  background:#fff;
+  /* smooth progress — JS sets width, CSS transitions it */
+  transition:width .4s ease;
+}
+
+/* ── HEADER ── */
+#hdr{
+  position:fixed;top:0;left:0;right:0;height:var(--hh);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;border-bottom:1px solid #1e1e1e;
+  background:#000;z-index:100;user-select:none;
+}
+.hdr-name{font-size:clamp(9px,2vw,12px);font-weight:200;letter-spacing:.24em;text-transform:uppercase;white-space:nowrap;}
+.hdr-meta{font-size:clamp(7px,1.4vw,10px);font-weight:200;letter-spacing:.18em;text-transform:uppercase;color:#444;white-space:nowrap;}
+
+/* ── FOOTER ── */
+#ftr{
+  position:fixed;bottom:0;left:0;right:0;height:var(--fh);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;border-top:1px solid #1e1e1e;
+  background:#000;z-index:100;user-select:none;
+}
+.ftr-copy{font-size:9px;font-weight:200;letter-spacing:.1em;color:#333;white-space:nowrap;}
+.ftr-nav{display:flex;align-items:center;gap:0;}
+.nav-btn{
+  background:none;border:none;cursor:pointer;
+  height:var(--fh);padding:0 16px;
+  display:flex;align-items:center;gap:6px;
+  font-family:var(--font);font-size:clamp(7px,1.4vw,10px);font-weight:200;
+  letter-spacing:.16em;text-transform:uppercase;
+  color:#666;transition:color .18s;white-space:nowrap;
+}
+.nav-btn:hover{color:#fff;}
+.nav-btn:disabled{color:#222;cursor:default;}
+.nav-btn svg{flex-shrink:0;}
+.nav-div{width:1px;height:14px;background:#1e1e1e;}
+#counter{font-size:clamp(7px,1.4vw,10px);font-weight:200;letter-spacing:.14em;text-transform:uppercase;color:#333;min-width:56px;text-align:center;}
+.ftr-grid-btn{
+  background:none;border:none;cursor:pointer;
+  height:var(--fh);padding:0 16px;
+  display:flex;align-items:center;gap:6px;
+  font-family:var(--font);font-size:clamp(7px,1.4vw,10px);font-weight:200;
+  letter-spacing:.16em;text-transform:uppercase;
+  color:#666;transition:color .18s;
+}
+.ftr-grid-btn:hover{color:#fff;}
+.ftr-grid-btn.on{color:#fff;}
+
+/* ── DESKTOP VIEWER ── */
+#viewer{
+  position:fixed;
+  top:var(--hh);bottom:var(--fh);left:0;right:0;
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;background:#000;
+}
+#canvas-wrap{
+  position:relative;
+  background:#fff;
+  box-shadow:0 10px 40px rgba(0,0,0,0.65);
+  transition:opacity .38s ease;
+  /* sized by JS to exact canvas dimensions — no gap possible */
+}
+#canvas-wrap canvas{display:block;}
+.wm{
+  position:absolute;inset:0;pointer-events:none;
+  display:flex;align-items:center;justify-content:center;z-index:2;
+}
+.wm svg{width:60%;opacity:.04;user-select:none;}
+
+/* fade between pages */
+#canvas-wrap.fade{opacity:0;}
+
+/* ── GRID OVERLAY ── */
+#grid{
+  display:none;
+  position:fixed;top:var(--hh);bottom:var(--fh);left:0;right:0;
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  background:#000;padding:12px;z-index:50;
+  touch-action:pan-y;
+}
+#grid.on{display:block;}
+#grid-inner{
+  display:grid;gap:8px;
+  grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+}
+@media(max-width:600px){#grid-inner{grid-template-columns:repeat(2,1fr);}}
+.gt{
+  position:relative;overflow:hidden;background:#fff;
+  cursor:pointer;border:1px solid transparent;transition:border-color .15s;
+}
+.gt:hover{border-color:#444;}
+.gt canvas{display:block;width:100%;height:auto;background:#fff;}
+.gt-wm{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;}
+.gt-wm svg{width:75%;opacity:.04;}
+.gt-n{position:absolute;bottom:6px;right:8px;font-size:8px;letter-spacing:.1em;color:rgba(0,0,0,.25);z-index:3;}
+
+/* ── MOBILE STRIP ── */
+#strip{
+  display:none;
+  position:fixed;top:var(--hh);bottom:var(--fh);left:0;right:0;
+  overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;
+  background:#000;touch-action:pan-y;
+}
+.sp{
+  width:100%;position:relative;display:block;
+  background:#fff;
+}
+.sp canvas{
+  display:block;width:100%;height:auto;
+  background:#fff;
+}
+.sp .wm{position:absolute;inset:0;}
+</style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div id="splash">
+  <div class="s-name">Chiu Lok Yin</div>
+  <div class="s-sub">Selected Works 2023 – 2025</div>
+  <div class="s-track"><div class="s-fill" id="sfill"></div></div>
+</div>
+
+<!-- HEADER -->
+<div id="hdr">
+  <span class="hdr-name">Chiu Lok Yin</span>
+  <span class="hdr-meta">Selected Works — 2023 / 2025</span>
+</div>
+
+<!-- DESKTOP VIEWER -->
+<div id="viewer">
+  <div id="canvas-wrap">
+    <canvas id="cv"></canvas>
+    <div class="wm" id="wm"></div>
+  </div>
+</div>
+
+<!-- MOBILE STRIP -->
+<div id="strip"></div>
+
+<!-- GRID -->
+<div id="grid"><div id="grid-inner"></div></div>
+
+<!-- FOOTER -->
+<div id="ftr">
+  <span class="ftr-copy">© 2026 Chiu Lok Yin. All rights reserved.</span>
+  <div class="ftr-nav">
+    <button class="nav-btn" id="btn-prev">
+      <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M7 1L3 5l4 4" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Prev
+    </button>
+    <div class="nav-div"></div>
+    <span id="counter">— / —</span>
+    <div class="nav-div"></div>
+    <button class="nav-btn" id="btn-next">Next
+      <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M3 1l4 4-4 4" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div class="nav-div" style="margin-left:8px"></div>
+    <button class="ftr-grid-btn" id="btn-grid">
+      <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+        <rect x="1" y="1" width="4" height="4" stroke="currentColor" stroke-width="1.1"/>
+        <rect x="7" y="1" width="4" height="4" stroke="currentColor" stroke-width="1.1"/>
+        <rect x="1" y="7" width="4" height="4" stroke="currentColor" stroke-width="1.1"/>
+        <rect x="7" y="7" width="4" height="4" stroke="currentColor" stroke-width="1.1"/>
+      </svg>Grid
+    </button>
+  </div>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const PDF     = 'portfolio.pdf';
+const AUTHOR  = 'Chiu Lok Yin';
+const COPY    = `© 2026 ${AUTHOR}. All rights reserved.`;
+
+// ── elements ──
+const splash   = document.getElementById('splash');
+const sfill    = document.getElementById('sfill');
+const viewer   = document.getElementById('viewer');
+const cwrap    = document.getElementById('canvas-wrap');
+const mainCv   = document.getElementById('cv');
+const wmDiv    = document.getElementById('wm');
+const stripEl  = document.getElementById('strip');
+const gridEl   = document.getElementById('grid');
+const gridInner= document.getElementById('grid-inner');
+const btnPrev  = document.getElementById('btn-prev');
+const btnNext  = document.getElementById('btn-next');
+const btnGrid  = document.getElementById('btn-grid');
+const counter  = document.getElementById('counter');
+
+// ── state ──
+let pdf        = null;
+let total      = 0;
+let cur        = 1;
+let inGrid     = false;
+let gridBuilt  = false;
+let stripBuilt = false;
+let rendering  = false;
+
+// ── helpers ──
+function isMobile(){ return window.innerWidth < 700; }
+
+function wmSVG(){
+  return `<svg viewBox="0 0 400 80" xmlns="http://www.w3.org/2000/svg">
+    <text x="200" y="46" text-anchor="middle" font-family="sans-serif"
+      font-size="26" letter-spacing="8" fill="#000">${AUTHOR.toUpperCase()}</text>
+    <text x="200" y="66" text-anchor="middle" font-family="sans-serif"
+      font-size="9" letter-spacing="4" fill="#000">${COPY}</text>
+  </svg>`;
+}
+
+// Disable right-click / drag everywhere
+document.addEventListener('contextmenu', e=>e.preventDefault());
+document.addEventListener('dragstart',   e=>e.preventDefault());
+document.addEventListener('selectstart', e=>e.preventDefault());
+
+// ── LOAD ──
+async function load(){
+  // Animate progress bar smoothly to 80% while loading, then to 100%
+  let fake = 0;
+  const tick = setInterval(()=>{
+    fake = Math.min(fake + (80-fake)*0.06 + 0.3, 79);
+    sfill.style.width = fake + '%';
+  }, 60);
+
+  const task = pdfjsLib.getDocument(PDF);
+  task.onProgress = ({loaded,total})=>{
+    if(total){ sfill.style.width = Math.round(loaded/total*80)+'%'; }
+  };
+  pdf   = await task.promise;
+  total = pdf.numPages;
+  clearInterval(tick);
+
+  // Shoot to 100%
+  sfill.style.width = '100%';
+
+  // Render first page (hidden, behind splash)
+  await renderPage(1, false);
+
+  // Wait for bar to visually reach 100%, then fade splash
+  setTimeout(()=>{
+    splash.classList.add('out');
+    setTimeout(()=>{ splash.style.display='none'; }, 850);
+  }, 500);
+
+  syncControls();
+  setupLayout();
+}
+
+// ── RENDER (desktop) ──
+async function renderPage(num, fade){
+  if(rendering) return;
+  rendering = true;
+
+  const page  = await pdf.getPage(num);
+  const rawVP = page.getViewport({scale:1});
+
+  // Fit entire page inside viewer — no crop, no black frame within cwrap
+  const vw = viewer.offsetWidth;
+  const vh = viewer.offsetHeight;
+  const sc = Math.min(vw / rawVP.width, vh / rawVP.height);
+  const vp = page.getViewport({scale: sc});
+  const dpr= Math.min(window.devicePixelRatio||1, 2);
+
+  // Fade out
+  if(fade){ cwrap.classList.add('fade'); await wait(390); }
+
+  // Size canvas-wrap exactly to rendered page — fills viewer centre, body black beyond
+  cwrap.style.width  = Math.round(vp.width)  + 'px';
+  cwrap.style.height = Math.round(vp.height) + 'px';
+
+  mainCv.width  = Math.round(vp.width  * dpr);
+  mainCv.height = Math.round(vp.height * dpr);
+  mainCv.style.width  = Math.round(vp.width)  + 'px';
+  mainCv.style.height = Math.round(vp.height) + 'px';
+
+  const ctx = mainCv.getContext('2d');
+  
+  // Paint white background to fix transparent PDF layers/pages
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, mainCv.width, mainCv.height);
+
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  await page.render({canvasContext:ctx, viewport:vp}).promise;
+
+  // Watermark
+  wmDiv.innerHTML = wmSVG();
+
+  // Fade in
+  cwrap.classList.remove('fade');
+
+  cur       = num;
+  rendering = false;
+  syncControls();
+}
+
+function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+// ── LAYOUT (mobile vs desktop) ──
+function setupLayout(){
+  if(isMobile()){
+    viewer.style.display = 'none';
+    stripEl.style.display= 'block';
+    buildStrip();
+    // hide grid button on mobile — only strip
+    btnGrid.style.display= 'none';
+  } else {
+    viewer.style.display = 'flex';
+    stripEl.style.display= 'none';
+  }
+}
+
+// ── STRIP (mobile) ──
+async function buildStrip(){
+  if(stripBuilt) return;
+  stripBuilt = true;
+  stripEl.innerHTML = '';
+
+  const W   = window.innerWidth;
+  const dpr = Math.min(window.devicePixelRatio||1, 3);
+
+  for(let i=1; i<=total; i++){
+    const page  = await pdf.getPage(i);
+    const rawVP = page.getViewport({scale:1});
+    const sc    = W / rawVP.width;
+    const vp    = page.getViewport({scale:sc});
+    const cssH  = Math.round(vp.height);
+
+    const wrap = document.createElement('div');
+    wrap.className    = 'sp';
+    wrap.dataset.page = i;
+    wrap.style.height = cssH+'px';
+
+    const cv = document.createElement('canvas');
+    cv.width  = Math.round(W*dpr);
+    cv.height = Math.round(cssH*dpr);
+    cv.style.width  = W+'px';
+    cv.style.height = cssH+'px';
+
+    const wmD = document.createElement('div');
+    wmD.className   = 'wm';
+    wmD.innerHTML   = wmSVG();
+
+    wrap.appendChild(cv);
+    wrap.appendChild(wmD);
+    stripEl.appendChild(wrap);
+
+    // Page counter tracking
+    new IntersectionObserver(ens=>{
+      ens.forEach(en=>{
+        if(en.isIntersecting && en.intersectionRatio>=.4){
+          cur = parseInt(wrap.dataset.page);
+          syncControls();
+        }
+      });
+    },{root:stripEl, threshold:.4}).observe(wrap);
+
+    // Lazy render
+    new IntersectionObserver(ens=>{
+      ens.forEach(en=>{
+        if(!en.isIntersecting) return;
+        const ctx = cv.getContext('2d');
+        // Paint white background to prevent transparent PDF elements turning black
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, cv.width, cv.height);
+        ctx.scale(dpr,dpr);
+        page.render({canvasContext:ctx, viewport:vp});
+      });
+    },{root:stripEl, rootMargin:'500px'}).observe(wrap);
+
+    await wait(0);
+  }
+}
+
+// ── GRID ──
+async function buildGrid(){
+  if(gridBuilt) return;
+  gridBuilt = true;
+
+  for(let i=1; i<=total; i++){
+    const cell = document.createElement('div');
+    cell.className    = 'gt';
+    cell.dataset.page = i;
+
+    const nEl = document.createElement('div');
+    nEl.className   = 'gt-n';
+    nEl.textContent = i;
+    cell.appendChild(nEl);
+
+    const wmD = document.createElement('div');
+    wmD.className = 'gt-wm';
+    wmD.innerHTML = wmSVG();
+    cell.appendChild(wmD);
+
+    cell.addEventListener('click',()=>openFromGrid(parseInt(cell.dataset.page)));
+    gridInner.appendChild(cell);
+  }
+
+  // Lazy-render thumbs
+  const obs = new IntersectionObserver(async ens=>{
+    for(const en of ens){
+      if(!en.isIntersecting) continue;
+      const cell = en.target;
+      if(cell.querySelector('canvas')){ obs.unobserve(cell); continue; }
+      obs.unobserve(cell);
+      const n    = parseInt(cell.dataset.page);
+      const page = await pdf.getPage(n);
+      const raw  = page.getViewport({scale:1});
+      const vp   = page.getViewport({scale:.13});
+      const cv   = document.createElement('canvas');
+      cv.width   = Math.round(vp.width);
+      cv.height  = Math.round(vp.height);
+      cv.style.cssText = 'display:block;width:100%;height:auto;background:#fff;';
+      cell.style.aspectRatio = `${raw.width}/${raw.height}`;
+      cell.insertBefore(cv, cell.firstChild);
+      
+      const ctx = cv.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, cv.width, cv.height);
+      page.render({canvasContext:ctx, viewport:vp});
+    }
+  },{root:gridEl, rootMargin:'400px'});
+
+  gridInner.querySelectorAll('.gt').forEach(c=>obs.observe(c));
+}
+
+function openFromGrid(num){
+  inGrid = false;
+  btnGrid.classList.remove('on');
+  gridEl.classList.remove('on');
+  viewer.style.display = 'flex';
+  renderPage(num, false);
+  syncControls();
+}
+
+// ── GRID TOGGLE ──
+btnGrid.addEventListener('click',()=>{
+  inGrid = !inGrid;
+  btnGrid.classList.toggle('on', inGrid);
+  gridEl.classList.toggle('on', inGrid);
+  viewer.style.display = inGrid ? 'none' : 'flex';
+  if(inGrid) buildGrid();
+  syncControls();
+});
+
+// ── NAV ──
+btnPrev.addEventListener('click',()=>go(cur-1));
+btnNext.addEventListener('click',()=>go(cur+1));
+
+function go(n){
+  if(inGrid || !pdf) return;
+  n = Math.max(1, Math.min(total,n));
+  if(n===cur) return;
+  if(isMobile()){
+    cur = n;
+    const el = stripEl.querySelector(`[data-page="${n}"]`);
+    if(el) el.scrollIntoView({behavior:'smooth'});
+    syncControls();
+  } else {
+    renderPage(n, true);
+  }
+}
+
+function syncControls(){
+  counter.textContent = total ? `${cur} / ${total}` : '— / —';
+  btnPrev.disabled = cur<=1  || inGrid;
+  btnNext.disabled = cur>=total || inGrid;
+}
+
+// Keyboard
+document.addEventListener('keydown',e=>{
+  if(inGrid||isMobile()) return;
+  if(e.key==='ArrowRight'||e.key==='ArrowDown') go(cur+1);
+  if(e.key==='ArrowLeft' ||e.key==='ArrowUp')   go(cur-1);
+});
+
+// Swipe on desktop flipbook
+let tx0=0,ty0=0;
+viewer.addEventListener('touchstart',e=>{tx0=e.touches[0].clientX;ty0=e.touches[0].clientY;},{passive:true});
+viewer.addEventListener('touchend',e=>{
+  const dx=e.changedTouches[0].clientX-tx0, dy=e.changedTouches[0].clientY-ty0;
+  if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy)*1.4) dx<0?go(cur+1):go(cur-1);
+},{passive:true});
+
+// Resize
+let rt;
+window.addEventListener('resize',()=>{
+  clearTimeout(rt);
+  rt=setTimeout(async()=>{
+    if(!pdf) return;
+    if(isMobile()){
+      viewer.style.display='none';
+      stripEl.style.display='block';
+      if(!stripBuilt){ await buildStrip(); }
+    } else {
+      stripEl.style.display='none';
+      viewer.style.display= inGrid?'none':'flex';
+      if(!inGrid) renderPage(cur, false);
+    }
+  },200);
+});
+
+load();
+
+// ── MOBILE PINCH-TO-ZOOM (Instagram-style) ──
+let touchState = {
+  zooming: false,
+  target: null,
+  initDist: 0,
+  initMid: { x: 0, y: 0 },
+  elemRect: null
+};
+
+function getTouchDist(t1, t2) {
+  return Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+}
+
+function getTouchMid(t1, t2) {
+  return {
+    x: (t1.clientX + t2.clientX) / 2,
+    y: (t1.clientY + t2.clientY) / 2
+  };
+}
+
+stripEl.addEventListener('touchstart', e => {
+  if (e.touches.length === 2) {
+    const sp = e.target.closest('.sp');
+    if (!sp) return;
+
+    touchState.zooming = true;
+    touchState.target = sp;
+    
+    sp.style.transition = 'none';
+    sp.style.zIndex = '1000';
+
+    const t1 = e.touches[0];
+    const t2 = e.touches[1];
+
+    touchState.initDist = getTouchDist(t1, t2);
+    const mid = getTouchMid(t1, t2);
+    touchState.initMid = mid;
+
+    const rect = sp.getBoundingClientRect();
+    touchState.elemRect = rect;
+
+    const oX = ((mid.x - rect.left) / rect.width) * 100;
+    const oY = ((mid.y - rect.top) / rect.height) * 100;
+    
+    sp.style.transformOrigin = `${oX}% ${oY}%`;
+  }
+}, { passive: false });
+
+stripEl.addEventListener('touchmove', e => {
+  if (touchState.zooming && e.touches.length === 2) {
+    e.preventDefault(); // Stop native viewport scrolling during zoom interaction
+
+    const t1 = e.touches[0];
+    const t2 = e.touches[1];
+
+    const curDist = getTouchDist(t1, t2);
+    const curMid = getTouchMid(t1, t2);
+
+    let scale = curDist / touchState.initDist;
+    if (scale < 1) scale = 1;
+    if (scale > 4) scale = 4;
+
+    const dx = curMid.x - touchState.initMid.x;
+    const dy = curMid.y - touchState.initMid.y;
+
+    // Scale and translate relative to screen coordinates
+    touchState.target.style.transform = `scale(${scale}) translate(${dx / scale}px, ${dy / scale}px)`;
+  }
+}, { passive: false });
+
+function endZoom() {
+  if (!touchState.zooming) return;
+  const sp = touchState.target;
+  touchState.zooming = false;
+  touchState.target = null;
+
+  if (sp) {
+    sp.style.transition = 'transform 0.3s ease-out';
+    sp.style.transform = 'scale(1) translate(0px, 0px)';
+
+    const cleanup = () => {
+      sp.style.transition = '';
+      sp.style.transform = '';
+      sp.style.transformOrigin = '';
+      sp.style.zIndex = '';
+      sp.removeEventListener('transitionend', cleanup);
+    };
+    sp.addEventListener('transitionend', cleanup);
+  }
+}
+
+stripEl.addEventListener('touchend', e => {
+  if (touchState.zooming && e.touches.length < 2) {
+    endZoom();
+  }
+});
+
+stripEl.addEventListener('touchcancel', e => {
+  if (touchState.zooming) {
+    endZoom();
+  }
+});
+
+// Handle double-tap to avoid iOS default zoom overrides
+let lastTap = 0;
+stripEl.addEventListener('touchend', e => {
+  const now = Date.now();
+  if (now - lastTap < 300) {
+    e.preventDefault();
+  }
+  lastTap = now;
+});
+</script>
+</body>
+</html>
